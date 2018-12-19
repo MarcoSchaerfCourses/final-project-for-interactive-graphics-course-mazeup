@@ -1,0 +1,1038 @@
+<html>
+
+    <head>
+
+        <script src = 'Box2dWeb.min.js'></script>
+        <script src = 'Three.js'></script>
+        <script src = 'keyboard.js'></script>
+        <script src = 'jquery.js'></script>
+        <script src = 'maze.js'></script>
+        <script src = 'dat.gui.min.js'></script>
+
+        <script>
+            var camera             = undefined,
+                scene              = undefined,
+                renderer           = undefined,
+                spotL              = undefined,
+                ambientL 		   = undefined,
+                mouseX             = undefined,
+                mouseY             = undefined,
+                maze               = undefined,
+                mazeMesh           = undefined,
+                mazeDimension      = 11,
+                planeMesh          = undefined,
+                mouseRadius        = 0.4,
+                keyAxis            = [0, 0],
+                keyX 		       = 0,
+                keyY 		       = 0,
+                key 		       = false,
+                keyMesh 	       = undefined,
+                keyObj 		   	   = undefined,
+                planeTexture1      = THREE.ImageUtils.loadTexture('/Images/floor1.jpg'),
+                planeTexture2      = THREE.ImageUtils.loadTexture('/Images/floor2.jpg'),
+                planeTexture3      = THREE.ImageUtils.loadTexture('/Images/floor3.jpg'),
+                planeTexture4      = THREE.ImageUtils.loadTexture('/Images/floor4.jpg'),
+                planeTexture5      = THREE.ImageUtils.loadTexture('/Images/floor5.jpg'),
+                planeTexture6      = THREE.ImageUtils.loadTexture('/Images/floor6.jpg'),
+                planeTexture7      = THREE.ImageUtils.loadTexture('/Images/floor7.jpg'),
+                planeTexture8      = THREE.ImageUtils.loadTexture('/Images/floor8.jpg'),
+                brickTexture1      = THREE.ImageUtils.loadTexture('/Images/wall1.jpg'),
+                brickTexture2      = THREE.ImageUtils.loadTexture('/Images/wall2.jpg'),
+                brickTexture3      = THREE.ImageUtils.loadTexture('/Images/wall3.jpg'),
+                brickTexture4      = THREE.ImageUtils.loadTexture('/Images/wall4.jpg'),
+                brickTexture5      = THREE.ImageUtils.loadTexture('/Images/wall5.jpg'),
+                mouseBodyTexture   = THREE.ImageUtils.loadTexture('/Images/rat3.jpg'),
+                gameState 		   = undefined,
+                timerInterval 	   = null,
+                timeout 		   = 0,
+                level 			   = 1,
+                fails 			   = 0,
+                first 			   = true,
+                times 			   = 75,
+
+                b2World        	   = Box2D.Dynamics.b2World,
+                b2FixtureDef       = Box2D.Dynamics.b2FixtureDef,
+                b2BodyDef          = Box2D.Dynamics.b2BodyDef,
+                b2Body		       = Box2D.Dynamics.b2Body,
+                b2CircleShape      = Box2D.Collision.Shapes.b2CircleShape,
+                b2PolygonShape     = Box2D.Collision.Shapes.b2PolygonShape,
+                b2Settings         = Box2D.Common.b2Settings,
+                b2Vec2             = Box2D.Common.Math.b2Vec2,
+
+                wWorld             = undefined,
+                wBall              = undefined,
+            
+            	mouse 			   = undefined,
+                mouseMesh 		   = undefined,
+                mouseBody 		   = undefined,
+                mouseHead 		   = undefined,
+                mouseUpRightLeg    = undefined,
+                mouseUpRightLeg2   = undefined,
+                mouseUpLeftLeg 	   = undefined,
+                mouseUpLeftLeg2    = undefined,
+                mouseDownRightLeg  = undefined,
+                mouseDownRightLeg2 = undefined,
+                mouseDownLeftLeg   = undefined,
+                mouseDownLeftLeg2  = undefined,
+                mouseTail 		   = undefined,
+                mouseTail2 		   = undefined,
+
+            	keyboard 		   = undefined,
+            	rotationValue 	   = 0,
+            	rotationCondition  = 0,
+                axis               = undefined,
+
+            	POV 		   	   = 'Third Person',
+            	difficulty 		   = 'Easy',
+            	dimension 		   = 'Small',
+            	texture 		   = 'White',
+            	nightMode 		   = true,
+
+                camX               = undefined, 
+                camY               = undefined;
+
+            function setup() {
+
+				var gui = new dat.GUI({autoPlace: false});
+	            var GUIContainer = document.getElementById('menu');
+				GUIContainer.appendChild(gui.domElement);
+
+				var menuParams = function() {
+					this.POV = 'Third Person';
+					this.Difficulty = 'Easy';
+					this.Maze = 'Small';
+					this.Texture = 'White';
+					this.NightMode = true;
+					this.Play = function() {
+						returnDim();
+                        returnCamera();
+						gameState = 'initialize';
+						requestAnimationFrame(gameLoop);
+					}
+				};
+
+	            var params = new menuParams();
+
+	            gui.add(params, 'POV', ['Third Person', 'First Person']).onChange(function(val) {
+	                POV = val;
+	            });
+	            gui.add(params, 'Difficulty', ['Easy', 'Medium', 'Hard']).onChange(function(val) {
+	                difficulty = val;
+	            });
+	            gui.add(params, 'Maze', ['Small', 'Medium', 'Big', 'Huge']).onChange(function(val) {
+	                dimension = val;
+	            });
+	            gui.add(params, 'Texture', ['White', 'Dark Brown', 'Light Brown', 'Dark Grey', 'Light Grey']).onChange(function(val) {
+	                texture = val;
+	            });
+	            gui.add(params, 'NightMode').onChange(function(val) {
+	                nightMode = val;
+	            });
+	            gui.add(params, 'Play');
+
+	            gui.open();            	
+
+            }
+
+            function returnSec() {
+            	switch(difficulty) {
+            		case 'Easy':
+            			return 60;
+            			break;
+            		case 'Medium':
+            			return 45;
+            			break;
+            		case 'Hard':
+            			return 30;
+            			break;
+            	}
+            }
+
+            function returnDim() {
+            	switch(dimension) {
+            		case 'Small':
+            			mazeDimension = 11;
+            			break;
+            		case 'Medium':
+            			mazeDimension = 13;
+            			break;
+            		case 'Big':
+            			mazeDimension = 15;
+            			break;
+            		case 'Huge':
+            			mazeDimension = 17;
+            			break;
+            	}
+            }
+
+            function returnCamera() {
+                switch(POV) {
+                    case 'First Person':
+                        var aspect = window.innerWidth/window.innerHeight;
+                        camera = new THREE.PerspectiveCamera(30, aspect, 1, 1000);
+                        camera.position.set(-0.4, 0, -0.6);
+                        camX = camera.position.x;
+                        camY = camera.position.y;
+                        break;
+                    case 'Third Person':
+                        var aspect = window.innerWidth/window.innerHeight;
+                        camera = new THREE.PerspectiveCamera(120, aspect, 1, 1000);
+                        camera.position.set(1, 1, 5);
+                        break;
+                }
+            }
+
+            function changeValue() {
+
+                document.getElementById("timer").innerHTML = --sec;
+                if(sec == 0) {
+                	--min;
+                  	if(min == -1) {
+                  		timeout = 1;
+                    	clearInterval(timerInterval);
+                    	fails++;
+                    	return;
+                  }
+                	sec = returnSec();
+                }
+
+                if(sec < 10) {
+                	if(sec < 0) sec = 0;
+                  	$('#timer').html('Time Remaining '+ min + ':0' + sec);
+                }
+                else {
+                	$('#timer').html('Time Remaining '+ min + ':' + sec);
+                }
+            }
+
+            function createPhysicsWorld() {
+
+                wWorld = new b2World(new b2Vec2(0, 0), true);
+                var bodyDef = new b2BodyDef();
+                bodyDef.type = b2Body.b2_dynamicBody;
+                bodyDef.position.Set(1, 1);
+                mouse = wWorld.CreateBody(bodyDef);
+                var fixDef = new b2FixtureDef();
+                fixDef.density = 1.0;
+                fixDef.friction = 0.0;
+                fixDef.restitution = 0.25;
+                fixDef.shape = new b2CircleShape(mouseRadius);
+                mouse.CreateFixture(fixDef);
+
+                bodyDef.type = b2Body.b2_staticBody;
+                fixDef.shape = new b2PolygonShape();
+                fixDef.shape.SetAsBox(0.5, 0.5);
+                for (var i = 0; i < maze.dimension; i++) {
+                    for (var j = 0; j < maze.dimension; j++) {
+                        if (maze[i][j]) {
+                            bodyDef.position.x = i;
+                            bodyDef.position.y = j;
+                            wWorld.CreateBody(bodyDef).CreateFixture(fixDef);
+                        }
+                    }
+                }
+            }
+
+            function generate_maze_mesh(field) {
+                var dummy = new THREE.Geometry();
+                for (var i = 0; i < field.dimension; i++) {
+                    for (var j = 0; j < field.dimension; j++) {
+                        if (field[i][j]) {
+                            var geometry = new THREE.CubeGeometry(1, 1, 2, 1, 1, 1);
+                            var mesh_ij = new THREE.Mesh(geometry);
+                            mesh_ij.position.x = i;
+                            mesh_ij.position.y = j;
+                            mesh_ij.position.z = -0.3;
+                            THREE.GeometryUtils.merge(dummy, mesh_ij);
+                        }
+                    }
+                }
+
+                var cycle = true;
+                while(cycle){
+                	keyX = Math.floor((Math.random() * field.dimension));
+                  	keyY = Math.floor((Math.random() * field.dimension));
+                  	if(field[keyX][keyY] == false && keyX != 1 && keyY != 1) cycle = false;
+                }
+
+                keyObj.position.set(keyX, keyY, 1);
+
+                switch(texture) {
+
+                	case 'White':
+                    	var material = new THREE.MeshPhongMaterial({map: brickTexture1});
+                    	break;
+                  	case 'Dark Brown':
+                    	var material = new THREE.MeshPhongMaterial({map: brickTexture2});
+                    	break;
+                  	case 'Light Brown':
+                    	var material = new THREE.MeshPhongMaterial({map: brickTexture3});
+                    	break;
+                  	case 'Dark Grey':
+                    	var material = new THREE.MeshPhongMaterial({map: brickTexture4});
+                    	break;
+                  	case 'Light Grey':
+                    	var material = new THREE.MeshPhongMaterial({map: brickTexture5});
+                    	break;
+                }
+
+                var mesh = new THREE.Mesh(dummy, material);
+                return mesh;
+            }
+
+
+            function createRenderWorld() {
+
+                ambientL = new THREE.AmbientLight(0xffffff);
+
+                spotL = new THREE.SpotLight(0xffffff);
+        		spotL.angle = Math.PI/2;
+        		spotL.penumbra = 0;
+        		spotL.decay = 0;
+
+                keyObj = new THREE.Object3D();
+                var geometry = new THREE.OctahedronGeometry(0.20, 0);
+                if(nightMode)
+                	var material = new THREE.MeshPhongMaterial({color: 0xff0000, transparent: true, shininess: 100});
+                else
+                	var material = new THREE.MeshBasicMaterial({color: 0xff0000});
+
+                keyMesh = new THREE.Mesh(geometry, material);
+                keyObj.add(keyMesh);
+                var geometry2 = new THREE.TorusKnotGeometry(0.3, 0.05, 64, 8);
+                if(nightMode)
+                	var material2 = new THREE.MeshPhongMaterial({color: 0xffff00, transparent: true, shininess:100});
+                else
+                	var material2 = new THREE.MeshBasicMaterial({color: 0xffff00});
+                var torusKnot = new THREE.Mesh(geometry2, material2);
+                keyObj.add(torusKnot);
+
+                var floorMaterial = null;
+                var floor = Math.floor((Math.random() * 8) + 1);
+
+                switch(floor){
+
+                	case 1:
+                    	planeTexture1.wrapS = planeTexture1.wrapT = THREE.RepeatWrapping;
+                    	planeTexture1.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture1});
+                    	break;
+
+                  	case 2:
+                    	planeTexture2.wrapS = planeTexture2.wrapT = THREE.RepeatWrapping;
+                    	planeTexture2.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture2});
+                    	break;
+
+                  	case 3:
+                    	planeTexture3.wrapS = planeTexture3.wrapT = THREE.RepeatWrapping;
+                    	planeTexture3.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture3});
+                    	break;
+
+                  	case 4:
+                    	planeTexture4.wrapS = planeTexture4.wrapT = THREE.RepeatWrapping;
+                    	planeTexture4.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture4});
+                    	break;
+
+                  	case 5:
+                    	planeTexture5.wrapS = planeTexture5.wrapT = THREE.RepeatWrapping;
+                    	planeTexture5.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture5});
+                    	break;
+
+                  	case 6:
+                    	planeTexture6.wrapS = planeTexture6.wrapT = THREE.RepeatWrapping;
+                    	planeTexture6.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture6});
+                    	break;
+
+                  	case 7:
+                    	planeTexture7.wrapS = planeTexture7.wrapT = THREE.RepeatWrapping;
+                    	planeTexture7.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture7});
+                    	break;
+
+                  	case 8:
+                    	planeTexture8.wrapS = planeTexture8.wrapT = THREE.RepeatWrapping;
+                    	planeTexture8.repeat.set(30, 30);
+                    	floorMaterial = new THREE.MeshPhongMaterial({map: planeTexture8});
+                    	break;
+                }
+                
+                g = new THREE.PlaneGeometry(100, 100);
+              	planeMesh = new THREE.Mesh(g, floorMaterial);
+              	planeMesh.position.y = -0.5;
+                planeMesh.rotation.set(Math.PI/2, 0, 0);
+
+                mouseMesh = new THREE.Object3D();
+
+                mouseGeometry = new THREE.CubeGeometry(0.5, 0.2, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseBody = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseBody.position.set(0.1, 0, 0);
+                mouseMesh.add(mouseBody);
+
+                mouseGeometry = new THREE.CubeGeometry(0.13, 0.13, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseHead = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseHead.position.set(0.33, 0, 0);
+                mouseBody.add(mouseHead);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseUpRightLeg = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseUpRightLeg.position.set(0.1, -0.15, 0);
+                mouseBody.add(mouseUpRightLeg);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseUpRightLeg2 = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseUpRightLeg2.position.set(0, -0.1, 0);
+                mouseUpRightLeg.add(mouseUpRightLeg2);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseUpLeftLeg = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseUpLeftLeg.position.set(0.1, 0.15, 0);
+                mouseBody.add(mouseUpLeftLeg);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseUpLeftLeg2 = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseUpLeftLeg2.position.set(0, 0.1, 0);
+                mouseUpLeftLeg.add(mouseUpLeftLeg2);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseDownRightLeg = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseDownRightLeg.position.set(-0.1, -0.15, 0);
+                mouseBody.add(mouseDownRightLeg);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseDownRightLeg2 = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseDownRightLeg2.position.set(0, -0.1, 0);
+                mouseDownRightLeg.add(mouseDownRightLeg2);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseDownLeftLeg = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseDownLeftLeg.position.set(-0.1, 0.15, 0);
+                mouseBody.add(mouseDownLeftLeg);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseDownLeftLeg2 = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseDownLeftLeg2.position.set(0, 0.1, 0);
+                mouseDownLeftLeg.add(mouseDownLeftLeg2);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseTail = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseTail.position.set(-0.3, 0, 0);
+                mouseBody.add(mouseTail);
+
+                mouseGeometry = new THREE.CubeGeometry(0.1, 0.1, 0);
+                mouseMaterial = new THREE.MeshBasicMaterial({map:mouseBodyTexture});
+                mouseTail2 = new THREE.Mesh(mouseGeometry, mouseMaterial);
+                mouseTail2.position.set(-0.1, 0, 0);
+                mouseTail.add(mouseTail2);
+
+                mouseMesh.position.set(1, 1, 1);
+
+                mazeMesh = generate_maze_mesh(maze);
+
+            	if(!maze[2][1]) {
+            		mouseBody.rotation.z = 0;
+                    axis = true;
+                }
+            	if(!maze[1][2]) {
+            		mouseBody.rotation.z = Math.PI/2;
+                    axis = false;
+                }
+                
+				scene = new THREE.Scene();
+
+				if(nightMode) {
+					scene.add(spotL.target);
+					scene.add(spotL);
+				}
+				else scene.add(ambientL);
+
+				scene.add(planeMesh);
+				scene.add(mazeMesh);                
+                scene.add(keyObj);
+                scene.add(mouseMesh);
+                
+                if(POV == 'First Person')
+                    mouseTail.add(camera);
+                else
+                    scene.add(camera);
+            }
+
+            function updatePhysicsWorld() {
+                
+                // Apply "friction".
+                var lv = mouse.GetLinearVelocity();
+                lv.Multiply(0.95);
+                mouse.SetLinearVelocity(lv);
+                
+                // Apply user-directed force -> USER INTERACTION
+                var f = new b2Vec2(keyAxis[0] * mouse.GetMass() * 0.25, keyAxis[1] * mouse.GetMass() * 0.25);
+                mouse.ApplyImpulse(f, mouse.GetPosition());
+                keyAxis = [0, 0];
+                
+                // Take a time step.
+                wWorld.Step(1/60, 8, 3); 
+            }
+
+            function updateRenderWorld() {
+                
+                var stepX = mouse.GetPosition().x - mouseMesh.position.x;
+                var stepY = mouse.GetPosition().y - mouseMesh.position.y;
+                mouseMesh.position.x += stepX;
+                mouseMesh.position.y += stepY;
+				
+				keyObj.rotation.x += 0.005;
+                keyObj.rotation.y += 0.035;
+                
+                
+                if(times <= 150) {
+
+                	mouseUpLeftLeg.rotation.z += 0.01;
+                  	mouseUpLeftLeg2.rotation.z += 0.01;
+                  	mouseUpRightLeg.rotation.z -= 0.01;
+                  	mouseUpRightLeg2.rotation.z -= 0.01;
+
+                  	mouseDownLeftLeg.rotation.z += 0.005;
+                  	mouseDownLeftLeg2.rotation.z += 0.005;
+                  	mouseDownRightLeg.rotation.z -= 0.005;
+                  	mouseDownRightLeg2.rotation.z -= 0.005;
+
+                  	times++;
+
+                }
+                
+                if(times > 150) {
+
+                	mouseUpLeftLeg.rotation.z -= 0.01;
+                  	mouseUpLeftLeg2.rotation.z -= 0.01;
+                  	mouseUpRightLeg.rotation.z += 0.01;
+                  	mouseUpRightLeg2.rotation.z += 0.01;
+
+				  	mouseDownLeftLeg.rotation.z -= 0.005;
+                  	mouseDownLeftLeg2.rotation.z -= 0.005;
+                  	mouseDownRightLeg.rotation.z += 0.005;
+                  	mouseDownRightLeg2.rotation.z += 0.005;
+                    
+                  	times++;
+                
+                }
+
+                if(times == 300) times = 0;
+                
+                if(POV == 'Third Person') {
+                    switch(keyboard) { 
+                        //Left
+                        case 37:
+                            //Da destra
+                            if(rotationCondition.toFixed(2) >= 0 && rotationCondition.toFixed(2) < Math.PI.toFixed(2)) {
+                                rotationValue = Math.PI/32;
+                            }
+
+                            //Da su
+                            else if(rotationCondition.toFixed(2) >= (Math.PI/2).toFixed(2) && rotationCondition.toFixed(2) < Math.PI.toFixed(2)) {
+                                rotationValue = Math.PI/32;
+                            }
+                            
+                            //Da giu
+                            else if(rotationCondition.toFixed(2) > Math.PI && rotationCondition.toFixed(2) <= (3/2)*Math.PI) {
+                                rotationValue = -Math.PI/32;
+                            }
+
+                            rotationCondition += rotationValue;
+                            mouseBody.rotation.z = rotationCondition;
+
+                            if(rotationCondition.toFixed(2) == Math.PI.toFixed(2)) {
+                                rotationValue = 0;
+                            }
+
+                            break;
+
+                        //Up
+                        case 38:
+                            //Da destra
+                            if(rotationCondition.toFixed(2) >= 0 && rotationCondition.toFixed(2) < (Math.PI/2).toFixed(2)) {
+                                rotationValue = Math.PI/32;
+                            }
+
+                            //Da sinistra
+                            else if(rotationCondition.toFixed(2) > (Math.PI/2).toFixed(2) && rotationCondition.toFixed(2) <= Math.PI.toFixed(2)) {
+                                rotationValue = -Math.PI/32;
+                            }
+                            
+                            //Da giu
+                            else if(rotationCondition.toFixed(2) > (Math.PI/2) && rotationCondition.toFixed(2) <= ((3/2)*Math.PI)) {
+                                rotationValue = -Math.PI/32;
+                            }
+
+                            rotationCondition += rotationValue;
+                            mouseBody.rotation.z = rotationCondition; //Ruota sull'asse z perchè deve ruotare in base al "territorio circostante"
+
+                            if(rotationCondition.toFixed(2) == (Math.PI/2).toFixed(2)) {
+                                rotationValue = 0;
+                            }
+
+                            break;
+
+                        //Right
+                        case 39:
+                            //Da su
+                            if(rotationCondition.toFixed(2) > 0 && rotationCondition.toFixed(2) <= (Math.PI/2).toFixed(2)) {
+                                rotationValue = -Math.PI/32;
+                            }
+
+                            //Da sinistra
+                            if(rotationCondition.toFixed(2) > 0 && rotationCondition.toFixed(2) <= Math.PI.toFixed(2)) {
+                                rotationValue = -Math.PI/32;
+                            }
+
+                            //Da giu - caso positivo
+                            if(rotationCondition.toFixed(2) >= ((3/2)*Math.PI).toFixed(2) && rotationCondition.toFixed(2) < (Math.PI*2).toFixed(2)) {
+                                rotationValue = Math.PI/32;
+                            }
+
+                            rotationCondition += rotationValue;
+                            mouseBody.rotation.z = rotationCondition;
+
+                            if(rotationCondition.toFixed(2) == 0.00 || rotationCondition.toFixed(2) == 6.28) {
+                                rotationCondition = 0;
+                                rotationValue = 0;
+                            }
+                            break;
+
+                        //Down
+                        case 40:
+                            //Da destra
+                            if(Math.abs(rotationCondition.toFixed(2)) <= 0 && rotationCondition.toFixed(2) > (-Math.PI/2).toFixed(2)) {
+                                rotationValue = -Math.PI/32;
+                            }
+
+                            //Da su
+                            if(rotationCondition.toFixed(2) >= (Math.PI/2).toFixed(2) && rotationCondition.toFixed(2) < ((3/2)*Math.PI).toFixed(2)) {
+                                rotationValue = Math.PI/32;
+                            }
+
+                            //Da sinistra
+                            if(rotationCondition.toFixed(2) >= Math.PI.toFixed(2) && rotationCondition.toFixed(2) < ((3/2)*Math.PI).toFixed(2)) {
+                                rotationValue = Math.PI/32;
+                            }
+
+                            rotationCondition += rotationValue;
+                            mouseBody.rotation.z = rotationCondition;
+                            
+                            if(rotationCondition.toFixed(2) == (-Math.PI/2).toFixed(2)) {
+                                rotationCondition = (3/2)*Math.PI;
+                            }
+
+                            if(rotationCondition.toFixed(2) == ((3/2)*Math.PI).toFixed(2)) {
+                                rotationValue = 0;
+                            }
+                            break;
+                    }
+                }
+                
+                if(POV == 'Third Person') {
+				    camera.position.x += (mouseMesh.position.x - camera.position.x) * 0.1;
+	                camera.position.y += (mouseMesh.position.y - camera.position.y) * 0.1;
+                    spotL.target.position.x = camera.position.x;
+				    spotL.target.position.y = camera.position.y;
+                    spotL.target.position.z = camera.position.z - 3.7;
+				    spotL.position.x = camera.position.x;
+				    spotL.position.y = camera.position.y;
+                    spotL.position.z = camera.position.z + 2;
+                }
+
+                if(POV == 'First Person') {
+                    camX += (mouseMesh.position.x - camX) * 0.5;
+                    camY += (mouseMesh.position.y - camY) * 0.5;
+                    spotL.target.position.x = camX;
+                    spotL.target.position.y = camY;
+                    spotL.target.position.z = camera.position.z;
+                    spotL.position.x = camX;
+                    spotL.position.y = camY;
+                    spotL.position.z = camera.position.z + 5;
+                }
+            }
+
+            function gameLoop() {
+
+                switch(gameState) {
+
+                    case 'initialize':
+
+                    	$('#help').show();
+                    	$('#back').show();
+                    	$('#level').show();
+                		$('#fails').show();
+                		$('#timer').show();
+                		$('#menu').hide();
+
+                        key = false;
+                        $('#timer').html('Time Remaining 0:00');
+                        maze = generateSquareMaze(mazeDimension);
+                        maze[mazeDimension - 1][mazeDimension - 2] = false;
+
+                        createPhysicsWorld();
+                        createRenderWorld();
+
+                        if(first) {
+                        	var gui = new dat.GUI();
+                  			var params = { zoom: camera.position.z, }
+                            if(POV == 'Third Person') {
+                                gui.add( params, 'zoom', 3, 12 ).onChange(function(val) {
+                                    camera.position.z = val;
+                                });
+                            }
+                          gui.open();
+                        }
+
+                        first = false;
+
+                        if(POV == 'Third Person') 
+                            camera.position.set(1, 1, 5);
+                        else {
+                            camera.position.set(-0.4, 0, -0.6);
+                            camera.rotation.z = -Math.PI/2;
+                            camera.rotation.y = -Math.PI/2 + 0.05;
+                        }
+                        
+                        spotL.intensity = 1;
+                        $('#level').html('Level ' + level);
+                        $('#key').html('');
+                        clearInterval(timerInterval);
+                        min = 0;
+                        sec = returnSec();
+                        timerInterval = setInterval(changeValue, 1000);
+                        gameState = 'fade in';
+
+                        break;
+
+                    case 'fade in':
+
+                        spotL.intensity += 0.1 * (1.0 - spotL.intensity);
+                        renderer.render(scene, camera);
+                        if (Math.abs(spotL.intensity - 1.0) < 0.05) {
+                            spotL.intensity = 1.0;
+                            gameState = 'play'
+                        }
+
+                        break;
+
+                    case 'play':
+
+                        updatePhysicsWorld();
+                        updateRenderWorld();
+                        
+                        if(POV == 'First Person') {
+                            if(axis)
+                                if(mouseBody.rotation.z == Math.PI || mouseBody.rotation.z == -(Math.PI))
+                                    KeyboardJS.bind.axis('down', 'up', '', '', onMoveKey);
+                                else
+                                    KeyboardJS.bind.axis('up', 'down', '', '', onMoveKey);
+                            else
+                                if(mouseBody.rotation.z == (3/2)*Math.PI || mouseBody.rotation.z == -(Math.PI/2))
+                                    KeyboardJS.bind.axis('', '', 'down', 'up', onMoveKey);
+                                else
+                                    KeyboardJS.bind.axis('', '', 'up', 'down', onMoveKey);
+                        }
+
+                        else
+                            KeyboardJS.bind.axis('right', 'left', 'up', 'down', onMoveKey);
+
+                        KeyboardJS.bind.key('esc', function(){location.reload();});
+
+                        renderer.render(scene, camera);
+                        if(timeout == 1){
+                        	timeout = 0;
+                          	gameState = 'timeout';
+                        }
+
+                        if(Math.floor(mouseMesh.position.x + 0.5) == keyX && Math.floor(mouseMesh.position.y + 0.5) == keyY){
+                        	key = true;
+                          	$('#key').html('You found the key');
+                          	scene.remove(keyObj);
+                        }
+
+                        var mazeX = Math.floor(mouseMesh.position.x + 0.5);
+                        var mazeY = Math.floor(mouseMesh.position.y + 0.5);
+                        if (mazeX == mazeDimension && mazeY == mazeDimension - 2 && key) {
+                        	level++;
+                            mazeDimension += 2;
+                            gameState = 'fade out';
+                        }
+                        if (mazeX == mazeDimension && mazeY == mazeDimension - 2 && !key) {
+                        	fails++;
+							$('#fails').html('Fails ' + fails);
+                        	gameState = 'fade out';
+                        }
+
+                        break;
+
+                    case 'fade out':
+
+                        updatePhysicsWorld();
+                        updateRenderWorld();
+                        spotL.intensity += 0.1 * (0.0 - spotL.intensity);
+                        renderer.render(scene, camera);
+
+                        if (Math.abs(spotL.intensity - 0.0) < 0.1) {
+                            spotL.intensity = 0.0;
+                            renderer.render(scene, camera);
+                            gameState = 'initialize'
+                        }
+
+                        break;
+
+                    case 'timeout':
+
+                        updatePhysicsWorld();
+                        updateRenderWorld();
+
+                        spotL.intensity += 0.1 * (0.0 - spotL.intensity);
+                        renderer.render(scene, camera);
+                        $('#timer').html('Time Remaining 0:00');
+                        $('#fails').html('Fails ' + fails);
+                        if (Math.abs(spotL.intensity - 0.0) < 0.1) {
+                            spotL.intensity = 0.0;
+                            renderer.render(scene, camera);
+                            gameState = 'initialize'
+                        }
+
+                        break;
+                }
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            document.onkeydown = function(event) {
+
+            	event.preventDefault();
+                keyboard = event.keyCode;
+                if(POV == 'First Person') {
+                    switch(keyboard) {
+                        case 37:
+                            mouseBody.rotation.z += Math.PI/2;
+                            if(axis)
+                                KeyboardJS.unbind.axis('up', 'down', '', '', onMoveKey);
+                            else   
+                                KeyboardJS.unbind.axis('', '', 'up', 'down', onMoveKey);
+                            axis = !axis;
+                            if(mouseBody.rotation.z == 2*Math.PI || mouseBody.rotation.z == -(2*Math.PI))
+                            mouseBody.rotation.z = 0;
+                            break;
+                        case 39:
+                            mouseBody.rotation.z -= Math.PI/2;
+                            if(axis)
+                                KeyboardJS.unbind.axis('up', 'down', '', '', onMoveKey);
+                            else   
+                                KeyboardJS.unbind.axis('', '', 'up', 'down', onMoveKey);
+                            axis = !axis;
+                            if(mouseBody.rotation.z == 2*Math.PI || mouseBody.rotation.z == -(2*Math.PI))
+                                mouseBody.rotation.z = 0;
+                            break;
+                    }
+                }
+            }
+
+            function onResize() {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+            }
+
+
+            function onMoveKey(axis) {
+                keyAxis = axis.slice(0);
+            }
+
+
+            jQuery.fn.centerv = function () {
+                wh = window.innerHeight;
+                h = this.outerHeight();
+                this.css("position", "absolute");
+                this.css("top", Math.max(0, (wh - h) / 2) + "px");
+                return this;
+            }
+
+
+            jQuery.fn.centerh = function () {
+                ww = window.innerWidth;
+                w = this.outerWidth();
+                this.css("position", "absolute");
+                this.css("left", Math.max(0, (ww - w) / 2) + "px");
+                return this;
+            }
+
+
+            jQuery.fn.center = function () {
+                this.centerv();
+                this.centerh();
+                return this;
+            }
+
+
+            $(document).ready(function() {
+
+				$('#help').hide();
+                $('#level').hide();
+                $('#fails').hide();
+                $('#timer').hide();
+				$('#instructions').hide();
+				$('#back').hide();
+                $('#menu').show();
+                $('#instructions').center();
+                KeyboardJS.bind.key('spacebar', function(){$('#instructions').show()}, function(){$('#instructions').hide()});
+
+                renderer = new THREE.WebGLRenderer();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+            
+                $(window).resize(onResize);
+                
+                setup();
+            });
+
+
+        </script>
+
+        <style>
+
+            body {
+                background: black;
+                margin: 0;
+                padding: 0;
+                font-family: 'Helvetica';
+            }
+
+            #menu {
+            	position: absolute;
+    			left: 550px;
+				top: 150px;
+				text-align: center;
+				color: white;
+				font-weight: bold;
+				font-size: 40px;
+            }
+
+            .close-button {
+            	visibility: hidden;
+            }
+
+            .cr.function span {
+            	padding-left: 68px;
+            }
+
+            .dg .cr.boolean,
+            .dg .cr.function,
+            .dg .cr.string {
+            	border-left: rgba(0, 0, 0, 1);
+            }
+
+            #instructions {
+                background-color: rgba(0, 0, 0, 1);
+                color: white;
+                text-align: center;
+                padding: 32px;
+                margin: 0px;
+                display: inline;
+                border: 2px solid white;
+            }
+
+            #help {
+                position: absolute;
+                left: 0px;
+                bottom: 0px;
+                padding: 4px;
+                color: white;
+            }
+
+            #back {
+            	position: absolute;
+            	right: 0px;
+            	bottom: 0px;
+            	padding: 4px;
+            	color: white;
+            }
+
+            #level {
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                padding: 4px;
+                color: yellow;
+                font-weight: bold;
+                font-size: 30px;
+            }
+
+            #fails {
+                position: absolute;
+                left: 0px;
+                top: 35px;
+                padding: 4px;
+                color: white;
+                font-weight: bold;
+                font-size: 30px;
+            }
+
+            #key {
+                position: absolute;
+                left: 0px;
+                top: 70px;
+                padding: 4px;
+                color: green;
+                font-weight: bold;
+                font-size: 30px;
+            }
+
+            #timer {
+                position: absolute;
+                right: 0px;
+                top: 40px;
+                padding: 4px;
+                color: red;
+                font-weight: bold;
+                font-size: 30px;
+            }
+
+        </style>
+
+    </head>
+
+    <body>
+
+    	<div id = 'menu'> MazeUp </div>
+
+	    <div id = 'instructions'>
+	        How to play MazeUp:
+	        <br><br>
+	        Use the arrows to find the key and exit the maze.
+	        <br><br>
+	    </div>
+
+	    <div id = 'help'> Hold down the spacebar for instructions </div>
+
+	    <div id = 'back'> Press 'esc' to go back to the main menu </div>
+
+	    <div id = 'level'> Level 1 </div>
+
+	    <div id = 'fails'> Fails 0 </div>
+
+	    <div id = 'timer'> Time Remaining 0:00 </div>
+	    <div id = 'key'></div>
+
+    </body>
+
+</html>
